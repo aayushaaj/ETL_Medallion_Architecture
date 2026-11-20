@@ -17,8 +17,12 @@ USING (
     FROM RETAIL_DW.RETAIL_SCHEMA.TMP_INVENTORY_SNAPSHOT i
     LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_ITEM di
            ON i.item_id = di.item_id
+          AND i.snapshot_date >= di.effective_from
+          AND i.snapshot_date < di.effective_to
     LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_STORE ds
            ON i.location_id = ds.location_id
+          AND i.snapshot_date >= ds.effective_from
+          AND i.snapshot_date < ds.effective_to
     LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_DAY dd
            ON i.snapshot_date = dd.full_date
     WHERE i._batch_date = '{{batch_date}}'
@@ -43,3 +47,11 @@ WHEN NOT MATCHED THEN
     VALUES (source.inventory_sk, source.snapshot_date, source.date_sk, source.item_id, source.item_sk,
             source.location_id, source.location_sk, source.on_hand_qty, source.on_order_qty,
             source.unit_cost, source._batch_date, source._loaded_at);
+
+UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
+SET status = 'SUCCESS',
+    end_time = CURRENT_TIMESTAMP(),
+    rows_read = (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_INVENTORY_SNAPSHOT WHERE _batch_date = '{{batch_date}}'),
+    rows_inserted = (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.FACT_INVENTORY_SNAPSHOT WHERE _batch_date = '{{batch_date}}'),
+    rows_rejected = 0
+WHERE run_id = '{{run_id}}' AND _batch_date = '{{batch_date}}' AND script_name = '{{script_name}}';

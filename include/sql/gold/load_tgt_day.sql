@@ -21,3 +21,11 @@ WHEN NOT MATCHED THEN
             quarter_num, year_num, is_weekend)
     VALUES (source.date_sk, source.full_date, source.day_of_week_num, source.day_name, source.month_num,
             source.month_name, source.quarter_num, source.year_num, source.is_weekend);
+
+UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
+SET status = 'SUCCESS',
+    end_time = CURRENT_TIMESTAMP(),
+    rows_read = 3653,
+    rows_inserted = (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_DAY),
+    rows_rejected = 0
+WHERE run_id = '{{run_id}}' AND _batch_date = '{{batch_date}}' AND script_name = '{{script_name}}';

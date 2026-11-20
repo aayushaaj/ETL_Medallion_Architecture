@@ -38,3 +38,11 @@ WHEN NOT MATCHED THEN
     INSERT (customer_sk, customer_id, customer_type, first_seen_date, last_seen_date, _batch_date, _loaded_at)
     VALUES (source.customer_sk, source.customer_id, source.customer_type, source.first_seen_date,
             source.last_seen_date, '{{batch_date}}', CURRENT_TIMESTAMP());
+
+UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
+SET status = 'SUCCESS',
+    end_time = CURRENT_TIMESTAMP(),
+    rows_read = (SELECT COUNT(DISTINCT customer_id) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_POS_SALES WHERE _batch_date = '{{batch_date}}' AND customer_id IS NOT NULL AND TRIM(customer_id) <> ''),
+    rows_inserted = (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_CUSTOMER WHERE _batch_date = '{{batch_date}}' AND customer_id <> 'UNKNOWN'),
+    rows_rejected = 0
+WHERE run_id = '{{run_id}}' AND _batch_date = '{{batch_date}}' AND script_name = '{{script_name}}';
