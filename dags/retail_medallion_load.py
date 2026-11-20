@@ -11,6 +11,7 @@ DEFAULT_DATA_PATH = "/opt/airflow/data"
 # Retention policy: number of days of batch data to retain.
 # Set to -1 or a very high number to effectively disable purging
 DEFAULT_RETENTION_DAYS = 365
+ENABLE_PURGE_DEFAULT = False
 
 SOURCE_FILES = [
     "pos_sales",
@@ -249,17 +250,34 @@ with DAG(
 
         print(f"Recorded completion in C_LOAD_DATES for batch {batch_date}.")
 
-    @task
+@task
     def purge_old_batches() -> None:
-        """
-        Purge data older than the retention period across all layers.
-        Delete batch rows where _batch_date < cutoff
-        """
+        \n        # Check if purge is enabled via Airflow Variable
+        try:
+            enable_purge = Variable.get("enable_purge", default_var=str(ENABLE_PURGE_DEFAULT))
+            if enable_purge.lower() not in ["true", "1", "yes"]:
+                print(f"Purge disabled via enable_purge Variable. Set to true/1/yes to enable.")
+                return
+        except Exception:
+            if not ENABLE_PURGE_DEFAULT:
+                print(f"Purge disabled by default (ENABLE_PURGE_DEFAULT=False).")
+                return
         try:
             retention_days = int(Variable.get("retention_days"))
         except Exception:
             retention_days = DEFAULT_RETENTION_DAYS
-
+        # Disable purging if retention_days is set to -1 or very high
+        if retention_days < 0 or retention_days > 1825:  # > 5 years
+            print(f"Retention days ({retention_days}) disabling batch purging.")
+            return
+        cutoff = get_retention_cutoff()
+        print(f"Purging data older than cutoff date: {cutoff}")\n        # Bronze layer: STG_* tables
+        run_sql("purge_bronze.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
+        print(f"  Purged Bronze STG tables up to cutoff {cutoff}.")\n        # Silver layer: TMP_* + C_REJ_TABLE
+        run_sql("purge_silver.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
+        print(f"  Purged Silver TMP tables and C_REJ_TABLE up to cutoff {cutoff}.")\n        # Gold layer: DIM_*, FACT_*, RPT_* tables
+        run_sql("purge_gold.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
+        print(f"  Purged Gold tables up to cutoff {cutoff}.")\n
         # Disable purging if retention_days is set to -1 or very high
         if retention_days < 0 or retention_days > 1825:  # > 5 years
             print(f"Retention days ({retention_days}) disabling batch purging.")
