@@ -1,0 +1,169 @@
+USE ROLE SYSADMIN;
+USE SCHEMA RETAIL_DW.RETAIL_SCHEMA;
+
+-- Dimensions
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.DIM_ITEM (
+    item_sk           NUMBER,
+    item_id           VARCHAR PRIMARY KEY,
+    item_name         VARCHAR,
+    subclass_id       VARCHAR,
+    subclass_sk       NUMBER,
+    subclass_name     VARCHAR,
+    unit_price        NUMBER(10,2),
+    unit_cost         NUMBER(10,2),
+    effective_from    DATE,
+    _batch_date       DATE,
+    _loaded_at        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.DIM_STORE (
+    location_sk       NUMBER,
+    location_id       VARCHAR PRIMARY KEY,
+    location_name     VARCHAR,
+    district_id       VARCHAR,
+    district_sk       NUMBER,
+    district_name     VARCHAR,
+    region            VARCHAR,
+    effective_from    DATE,
+    _batch_date       DATE,
+    _loaded_at        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.DIM_SUBCLASS (
+    subclass_sk       NUMBER,
+    subclass_id       VARCHAR,
+    subclass_name     VARCHAR,
+    _batch_date       DATE,
+    _loaded_at        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.DIM_DISTRICT (
+    district_sk       NUMBER,
+    district_id       VARCHAR,
+    district_name     VARCHAR,
+    region            VARCHAR,
+    _batch_date       DATE,
+    _loaded_at        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.DIM_CUSTOMER (
+    customer_sk       NUMBER,
+    customer_id       VARCHAR,
+    customer_type     VARCHAR,
+    first_seen_date   DATE,
+    last_seen_date    DATE,
+    _batch_date       DATE,
+    _loaded_at        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.DIM_DAY (
+    date_sk           NUMBER,
+    full_date         DATE,
+    day_of_week_num   NUMBER,
+    day_name          VARCHAR,
+    month_num         NUMBER,
+    month_name        VARCHAR,
+    quarter_num       NUMBER,
+    year_num          NUMBER,
+    is_weekend        BOOLEAN
+);
+
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.FACT_POS_SALES (
+    sales_line_sk     NUMBER,
+    transaction_id    VARCHAR,
+    line_id           NUMBER,
+    transaction_date  DATE,
+    date_sk           NUMBER,
+    item_id           VARCHAR,
+    item_sk           NUMBER,
+    location_id       VARCHAR,
+    location_sk       NUMBER,
+    customer_id       VARCHAR,
+    customer_sk       NUMBER,
+    sales_qty         NUMBER,
+    unit_price        NUMBER(10,2),
+    extended_amount   NUMBER(10,2),
+    payment_method    VARCHAR,
+    _batch_date       DATE,
+    _loaded_at        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.FACT_INVENTORY_SNAPSHOT (
+    inventory_sk      NUMBER,
+    snapshot_date     DATE,
+    date_sk           NUMBER,
+    item_id           VARCHAR,
+    item_sk           NUMBER,
+    location_id       VARCHAR,
+    location_sk       NUMBER,
+    on_hand_qty       NUMBER,
+    on_order_qty      NUMBER,
+    unit_cost         NUMBER(10,2),
+    _batch_date       DATE,
+    _loaded_at        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.FACT_PRICE (
+    price_sk          NUMBER,
+    effective_from    DATE,
+    date_sk           NUMBER,
+    item_id           VARCHAR,
+    item_sk           NUMBER,
+    unit_price        NUMBER(10,2),
+    unit_cost         NUMBER(10,2),
+    unit_margin       NUMBER(10,2),
+    _batch_date       DATE,
+    _loaded_at        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+-- Marts
+
+CREATE TABLE IF NOT EXISTS RETAIL_DW.RETAIL_SCHEMA.RPT_SALES_DAILY (
+    date_sk            NUMBER,
+    full_date          DATE,
+    location_sk        NUMBER,
+    location_id        VARCHAR,
+    item_sk            NUMBER,
+    item_id            VARCHAR,
+    line_count         NUMBER,
+    transaction_count  NUMBER,
+    total_qty          NUMBER,
+    total_sales_amount NUMBER(14,2),
+    total_cost         NUMBER(14,2),
+    gross_margin       NUMBER(14,2),
+    _batch_date        DATE,
+    _loaded_at         TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+
+
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.DIM_ITEM
+    ADD COLUMN IF NOT EXISTS item_sk     NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.DIM_ITEM
+    ADD COLUMN IF NOT EXISTS subclass_sk NUMBER;
+
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.DIM_STORE
+    ADD COLUMN IF NOT EXISTS location_sk NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.DIM_STORE
+    ADD COLUMN IF NOT EXISTS district_sk NUMBER;
+
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_POS_SALES
+    ADD COLUMN IF NOT EXISTS sales_line_sk NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_POS_SALES
+    ADD COLUMN IF NOT EXISTS date_sk       NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_POS_SALES
+    ADD COLUMN IF NOT EXISTS item_sk       NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_POS_SALES
+    ADD COLUMN IF NOT EXISTS location_sk   NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_POS_SALES
+    ADD COLUMN IF NOT EXISTS customer_sk   NUMBER;
+
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_INVENTORY_SNAPSHOT
+    ADD COLUMN IF NOT EXISTS inventory_sk NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_INVENTORY_SNAPSHOT
+    ADD COLUMN IF NOT EXISTS date_sk      NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_INVENTORY_SNAPSHOT
+    ADD COLUMN IF NOT EXISTS item_sk      NUMBER;
+ALTER TABLE RETAIL_DW.RETAIL_SCHEMA.FACT_INVENTORY_SNAPSHOT
+    ADD COLUMN IF NOT EXISTS location_sk  NUMBER;

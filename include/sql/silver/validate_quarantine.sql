@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM  RETAIL_DW.RETAIL_SCHEMA.C_REJ_TABLE WHERE _batch_date = '{{batch_date}}';
