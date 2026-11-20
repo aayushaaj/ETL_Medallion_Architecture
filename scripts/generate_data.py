@@ -3,17 +3,15 @@
 Usage:
     python scripts/generate_data.py
 
-Outputs to assignment_2_3/data/:
+Outputs to data/:
     batch_2026-11-18/ ... batch_2026-11-22/  (4 CSVs + .COMPLETE each)
     customer_seed.csv
 """
+import csv
 from pathlib import Path
 
-# __file__ is .../bootcamp/assignment_2_3/scripts/generate_data.py
-# SCRIPT_DIR is .../bootcamp/assignment_2_3/scripts
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-# OUT is .../bootcamp/assignment_2_3/data
 OUT = SCRIPT_DIR.parent / "data"
 
 DATES = ["2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22"]
@@ -121,10 +119,10 @@ INV = {
 
 def write_csv(path, header, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as f:
-        f.write(",".join(header) + "\n")
-        for r in rows:
-            f.write(",".join(str(x) for x in r) + "\n")
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerows(rows)
 
 
 def main():
