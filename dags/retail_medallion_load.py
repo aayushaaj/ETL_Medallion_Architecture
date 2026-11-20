@@ -2,7 +2,7 @@ import pendulum
 
 from airflow.exceptions import AirflowFailException
 from airflow.providers.standard.sensors.filesystem import FileSensor
-from airflow.sdk import DAG, Variable, task, get_current_context
+from airflow.sdk import DAG, Variable, task, get_current_context, TaskGroup
 
 from include.helpers import run_query, run_query_all, run_sql, run_sql_audited
 
@@ -64,12 +64,9 @@ def get_batch_metadata() -> tuple[str, str]:
         batch_date: Logical execution date (YYYY-MM-DD)
         dag_run_id: Current DAG run identifier
     """
-
     context = get_current_context()
-
     batch_date = context["ds"]
     dag_run_id = context["run_id"]
-
     return batch_date, dag_run_id
 
 
@@ -82,25 +79,6 @@ with DAG(
     max_active_runs=1,
     tags=["bronze", "silver", "dw"],
 ) as dag:
-
-    # CONTROL TABLE INITIALIZATION
-    @task
-    def init_control_tables() -> None:
-        run_sql(
-            "control/init_control.sql",
-            conn_id=SNOWFLAKE_CONN_ID,
-        )
-
-    @task
-    def init_gold_tables() -> None:
-        """
-        Create or upgrade the Gold tables.
-        The DDL is idempotent, so it is safe on every run.
-        """
-        run_sql(
-            "gold/init_gold.sql",
-            conn_id=SNOWFLAKE_CONN_ID,
-        )
 
     # BRONZE LAYER
     @task
@@ -176,7 +154,6 @@ with DAG(
         Validate and report rejected/quarantined rows
         for the current batch.
         """
-
         batch_date, _ = get_batch_metadata()
 
         row = run_query(
@@ -185,9 +162,7 @@ with DAG(
             conn_id=SNOWFLAKE_CONN_ID,
         )
 
-        print(
-            f"Batch {batch_date}: Rejected {row[0]} rows."
-        )
+        print(f"Batch {batch_date}: Rejected {row[0]} rows.")
 
     # GOLD LAYER
     @task
@@ -237,13 +212,26 @@ with DAG(
 
         print(f"Reconciliation passed for batch {batch_date}.")
 
+    @task
+    def record_batch_completion() -> None:
+        """
+        Record batch completion in C_LOAD_DATES.
+        Idempotent: safe to re-run for the same batch_date.
+        """
+        batch_date, dag_run_id = get_batch_metadata()
+
+        run_sql(
+            "control/update_c_load_dates.sql",
+            {"batch_date": batch_date, "run_id": dag_run_id},
+            conn_id=SNOWFLAKE_CONN_ID,
+        )
+
+        print(f"Recorded completion in C_LOAD_DATES for batch {batch_date}.")
+
     # TASK INSTANTIATION
 
-    init = init_control_tables()
-    init_gold = init_gold_tables()
-
     wait = FileSensor(
-        task_id="wait_for_sentinel",
+        task_id="wait_for_signal",
         fs_conn_id="file_conn",
         filepath="batch_{{ ds }}/.COMPLETE",
         poke_interval=10,
@@ -251,45 +239,39 @@ with DAG(
         mode="reschedule",
     )
 
-    stg_tasks = load_stg.expand(
-        file_name=SOURCE_FILES,
-    )
+    with TaskGroup("bronze") as bronze:
+        stg_tasks = load_stg.expand(file_name=SOURCE_FILES)
+        gate = schema_gate()
+        stg_tasks >> gate
 
-    gate = schema_gate()
+    with TaskGroup("silver") as silver:
+        tmp_master_tasks = load_tmp.override(task_id="load_tmp_master").expand(
+            table_name=TMP_MASTER_TABLES,
+        )
+        tmp_transaction_tasks = load_tmp.override(task_id="load_tmp_transaction").expand(
+            table_name=TMP_TRANSACTION_TABLES,
+        )
+        quar = validate_quarantine()
+        tmp_master_tasks >> tmp_transaction_tasks >> quar
 
-    tmp_master_tasks = load_tmp.override(task_id="load_tmp_dims").expand(
-        table_name=TMP_MASTER_TABLES,
-    )
+    with TaskGroup("gold") as gold:
+        tgt_ref_tasks = load_tgt.override(task_id="load_tgt_ref_dims").expand(
+            table_name=GOLD_REF_TABLES,
+        )
+        tgt_dim_tasks = load_tgt.override(task_id="load_tgt_core_dims").expand(
+            table_name=GOLD_DIM_TABLES,
+        )
+        tgt_fact_tasks = load_tgt.override(task_id="load_tgt_facts").expand(
+            table_name=GOLD_FACT_TABLES,
+        )
+        tgt_mart_tasks = load_tgt.override(task_id="load_tgt_marts").expand(
+            table_name=GOLD_MART_TABLES,
+        )
+        tgt_ref_tasks >> tgt_dim_tasks >> tgt_fact_tasks >> tgt_mart_tasks
 
-    tmp_transaction_tasks = load_tmp.override(task_id="load_tmp_facts").expand(
-        table_name=TMP_TRANSACTION_TABLES,
-    )
-
-    # 7. Validate quarantined records
-    quar = validate_quarantine()
-
-    # GOLD LAYER - one expanded group per dependency level
-    tgt_ref_tasks = load_tgt.override(task_id="load_tgt_ref_dims").expand(
-        table_name=GOLD_REF_TABLES,
-    )
-
-    tgt_dim_tasks = load_tgt.override(task_id="load_tgt_core_dims").expand(
-        table_name=GOLD_DIM_TABLES,
-    )
-
-    tgt_fact_tasks = load_tgt.override(task_id="load_tgt_facts").expand(
-        table_name=GOLD_FACT_TABLES,
-    )
-
-    tgt_mart_tasks = load_tgt.override(task_id="load_tgt_marts").expand(
-        table_name=GOLD_MART_TABLES,
-    )
-
-    # RECONCILIATION LAYER
     recon = reconcile()
+    record_completion = record_batch_completion()
 
     # TASK DEPENDENCIES
-    # Bronze -> Silver -> Gold dimensions -> Gold facts -> Marts -> Recon
-    init >> init_gold >> wait >> stg_tasks >> gate
-    gate >> tmp_master_tasks >> tmp_transaction_tasks >> quar
-    quar >> tgt_ref_tasks >> tgt_dim_tasks >> tgt_fact_tasks >> tgt_mart_tasks >> recon
+    # Sensor -> Bronze -> Silver -> Gold -> Recon -> Record
+    wait >> bronze >> silver >> gold >> recon >> record_completion
