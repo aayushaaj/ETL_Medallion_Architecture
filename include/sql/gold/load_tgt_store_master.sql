@@ -5,7 +5,8 @@
 UPDATE RETAIL_DW.RETAIL_SCHEMA.DIM_STORE AS target
 SET effective_to = source.effective_from,
     is_current   = FALSE,
-    _loaded_at   = CURRENT_TIMESTAMP()
+    _loaded_at   = CURRENT_TIMESTAMP(),
+    _updated_at  = CURRENT_TIMESTAMP()
 FROM (
     SELECT s.location_id, s.effective_from, s.location_name, s.district_id, s.region
     FROM RETAIL_DW.RETAIL_SCHEMA.TMP_STORE_MASTER s
@@ -50,13 +51,14 @@ WHEN MATCHED THEN
         district_name = source.district_name,
         region        = source.region,
         _batch_date   = source._batch_date,
-        _loaded_at    = CURRENT_TIMESTAMP()
+        _loaded_at    = CURRENT_TIMESTAMP(),
+        _updated_at   = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN
     INSERT (location_sk, location_id, location_name, district_id, district_sk,
-            district_name, region, effective_from, effective_to, is_current, _batch_date, _loaded_at)
+            district_name, region, effective_from, effective_to, is_current, _batch_date, _loaded_at, _inserted_at, _updated_at)
     VALUES (source.location_sk, source.location_id, source.location_name, source.district_id,
             source.district_sk, source.district_name, source.region, source.effective_from,
-            source.effective_to, source.is_current, source._batch_date, source._loaded_at);
+            source.effective_to, source.is_current, source._batch_date, source._loaded_at, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 -- Step 3: Audit log
 UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG

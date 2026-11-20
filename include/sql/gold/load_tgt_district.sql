@@ -22,7 +22,8 @@ WHEN MATCHED AND (target._batch_date IS NULL OR source._batch_date >= target._ba
         district_name = source.district_name,
         region        = source.region,
         _batch_date   = source._batch_date,
-        _loaded_at    = source._loaded_at
+        _loaded_at    = source._loaded_at,
+        _updated_at   = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN
-    INSERT (district_sk, district_id, district_name, region, _batch_date, _loaded_at)
-    VALUES (source.district_sk, source.district_id, source.district_name, source.region, source._batch_date, source._loaded_at);
+    INSERT (district_sk, district_id, district_name, region, _batch_date, _loaded_at, _inserted_at, _updated_at)
+    VALUES (source.district_sk, source.district_id, source.district_name, source.region, source._batch_date, source._loaded_at, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());

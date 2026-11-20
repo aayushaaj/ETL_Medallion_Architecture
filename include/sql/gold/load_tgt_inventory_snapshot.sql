@@ -49,13 +49,14 @@ WHEN MATCHED THEN
         on_order_qty = source.on_order_qty,
         unit_cost    = source.unit_cost,
         _batch_date  = source._batch_date,
-        _loaded_at   = source._loaded_at
+        _loaded_at   = source._loaded_at,
+        _updated_at  = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN
     INSERT (inventory_sk, snapshot_date, date_sk, item_id, item_sk, location_id,
-            location_sk, on_hand_qty, on_order_qty, unit_cost, _batch_date, _loaded_at)
+            location_sk, on_hand_qty, on_order_qty, unit_cost, _batch_date, _loaded_at, _inserted_at, _updated_at)
     VALUES (source.inventory_sk, source.snapshot_date, source.date_sk, source.item_id, source.item_sk,
             source.location_id, source.location_sk, source.on_hand_qty, source.on_order_qty,
-            source.unit_cost, source._batch_date, source._loaded_at);
+            source.unit_cost, source._batch_date, source._loaded_at, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
 SET status = 'SUCCESS',

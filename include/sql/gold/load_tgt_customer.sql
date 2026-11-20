@@ -33,11 +33,12 @@ WHEN MATCHED THEN
         last_seen_date  = GREATEST(COALESCE(target.last_seen_date, source.last_seen_date),
                                    COALESCE(source.last_seen_date, target.last_seen_date)),
         _batch_date     = '{{batch_date}}',
-        _loaded_at      = CURRENT_TIMESTAMP()
+        _loaded_at      = CURRENT_TIMESTAMP(),
+        _updated_at     = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN
-    INSERT (customer_sk, customer_id, customer_type, first_seen_date, last_seen_date, _batch_date, _loaded_at)
+    INSERT (customer_sk, customer_id, customer_type, first_seen_date, last_seen_date, _batch_date, _loaded_at, _inserted_at, _updated_at)
     VALUES (source.customer_sk, source.customer_id, source.customer_type, source.first_seen_date,
-            source.last_seen_date, '{{batch_date}}', CURRENT_TIMESTAMP());
+            source.last_seen_date, '{{batch_date}}', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
 SET status = 'SUCCESS',

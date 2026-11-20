@@ -11,7 +11,7 @@ WHERE date_sk IN (
 INSERT INTO RETAIL_DW.RETAIL_SCHEMA.RPT_SALES_DAILY (
     date_sk, full_date, location_sk, location_id, item_sk, item_id,
     line_count, transaction_count, total_qty, total_sales_amount,
-    total_cost, gross_margin, _batch_date, _loaded_at
+    total_cost, gross_margin, _batch_date, _loaded_at, _inserted_at, _updated_at
 )
 SELECT
     f.date_sk,
@@ -27,7 +27,9 @@ SELECT
     SUM(f.sales_qty * di.unit_cost)     AS total_cost,
     SUM(f.extended_amount) - SUM(f.sales_qty * di.unit_cost) AS gross_margin,
     MAX(f._batch_date)                  AS _batch_date,
-    CURRENT_TIMESTAMP()                 AS _loaded_at
+    CURRENT_TIMESTAMP()                 AS _loaded_at,
+    CURRENT_TIMESTAMP()                 AS _inserted_at,
+    CURRENT_TIMESTAMP()                 AS _updated_at
 FROM RETAIL_DW.RETAIL_SCHEMA.FACT_POS_SALES f
 JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_ITEM di
   ON f.item_sk = di.item_sk

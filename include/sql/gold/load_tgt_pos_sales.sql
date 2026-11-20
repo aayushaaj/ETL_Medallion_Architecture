@@ -59,15 +59,16 @@ WHEN MATCHED THEN
         extended_amount  = source.extended_amount,
         payment_method   = source.payment_method,
         _batch_date      = source._batch_date,
-        _loaded_at       = source._loaded_at
+        _loaded_at       = source._loaded_at,
+        _updated_at      = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN
     INSERT (sales_line_sk, transaction_id, line_id, transaction_date, date_sk,
             item_id, item_sk, location_id, location_sk, customer_id, customer_sk,
-            sales_qty, unit_price, extended_amount, payment_method, _batch_date, _loaded_at)
+            sales_qty, unit_price, extended_amount, payment_method, _batch_date, _loaded_at, _inserted_at, _updated_at)
     VALUES (source.sales_line_sk, source.transaction_id, source.line_id, source.transaction_date,
             source.date_sk, source.item_id, source.item_sk, source.location_id, source.location_sk,
             source.customer_id, source.customer_sk, source.sales_qty, source.unit_price,
-            source.extended_amount, source.payment_method, source._batch_date, source._loaded_at);
+            source.extended_amount, source.payment_method, source._batch_date, source._loaded_at, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
 SET status = 'SUCCESS',

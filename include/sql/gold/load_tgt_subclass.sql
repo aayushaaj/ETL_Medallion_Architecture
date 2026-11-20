@@ -20,7 +20,8 @@ WHEN MATCHED AND (target._batch_date IS NULL OR source._batch_date >= target._ba
         subclass_sk   = source.subclass_sk,
         subclass_name = source.subclass_name,
         _batch_date   = source._batch_date,
-        _loaded_at    = source._loaded_at
+        _loaded_at    = source._loaded_at,
+        _updated_at   = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN
-    INSERT (subclass_sk, subclass_id, subclass_name, _batch_date, _loaded_at)
-    VALUES (source.subclass_sk, source.subclass_id, source.subclass_name, source._batch_date, source._loaded_at);
+    INSERT (subclass_sk, subclass_id, subclass_name, _batch_date, _loaded_at, _inserted_at, _updated_at)
+    VALUES (source.subclass_sk, source.subclass_id, source.subclass_name, source._batch_date, source._loaded_at, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());

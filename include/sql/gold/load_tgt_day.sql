@@ -18,9 +18,9 @@ USING (
 ON target.date_sk = source.date_sk
 WHEN NOT MATCHED THEN
     INSERT (date_sk, full_date, day_of_week_num, day_name, month_num, month_name,
-            quarter_num, year_num, is_weekend)
+            quarter_num, year_num, is_weekend, _inserted_at, _updated_at)
     VALUES (source.date_sk, source.full_date, source.day_of_week_num, source.day_name, source.month_num,
-            source.month_name, source.quarter_num, source.year_num, source.is_weekend);
+            source.month_name, source.quarter_num, source.year_num, source.is_weekend, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
 SET status = 'SUCCESS',

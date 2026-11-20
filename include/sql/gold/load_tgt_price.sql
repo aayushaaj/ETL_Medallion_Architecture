@@ -31,12 +31,13 @@ WHEN MATCHED THEN
         unit_cost  = source.unit_cost,
         unit_margin = source.unit_margin,
         _batch_date = source._batch_date,
-        _loaded_at  = source._loaded_at
+        _loaded_at  = source._loaded_at,
+        _updated_at = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN
     INSERT (price_sk, effective_from, date_sk, item_id, item_sk,
-            unit_price, unit_cost, unit_margin, _batch_date, _loaded_at)
+            unit_price, unit_cost, unit_margin, _batch_date, _loaded_at, _inserted_at, _updated_at)
     VALUES (source.price_sk, source.effective_from, source.date_sk, source.item_id, source.item_sk,
-            source.unit_price, source.unit_cost, source.unit_margin, source._batch_date, source._loaded_at);
+            source.unit_price, source.unit_cost, source.unit_margin, source._batch_date, source._loaded_at, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
 SET status = 'SUCCESS',
