@@ -1,31 +1,40 @@
 --inventory positional fact (one row per item, location, snapshot).
+-- Truncate the batch's rows before re-loading to ensure idempotency.
+DELETE FROM RETAIL_DW.RETAIL_SCHEMA.FACT_INVENTORY_SNAPSHOT
+WHERE _batch_date = '{{batch_date}}';
+
 MERGE INTO RETAIL_DW.RETAIL_SCHEMA.FACT_INVENTORY_SNAPSHOT AS target
 USING (
-    SELECT
-        HASH(i.item_id, i.location_id, i.snapshot_date)  AS inventory_sk,
-        i.snapshot_date,
-        dd.date_sk,
-        i.item_id,
-        di.item_sk,
-        i.location_id,
-        ds.location_sk,
-        i.on_hand_qty,
-        i.on_order_qty,
-        i.unit_cost,
-        i._batch_date,
-        i._loaded_at
-    FROM RETAIL_DW.RETAIL_SCHEMA.TMP_INVENTORY_SNAPSHOT i
-    LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_ITEM di
-           ON i.item_id = di.item_id
-          AND i.snapshot_date >= di.effective_from
-          AND i.snapshot_date < di.effective_to
-    LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_STORE ds
-           ON i.location_id = ds.location_id
-          AND i.snapshot_date >= ds.effective_from
-          AND i.snapshot_date < ds.effective_to
-    LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_DAY dd
-           ON i.snapshot_date = dd.full_date
-    WHERE i._batch_date = '{{batch_date}}'
+    SELECT *
+    FROM (
+        SELECT
+            HASH(i.item_id, i.location_id, i.snapshot_date)  AS inventory_sk,
+            i.snapshot_date,
+            dd.date_sk,
+            i.item_id,
+            di.item_sk,
+            i.location_id,
+            ds.location_sk,
+            i.on_hand_qty,
+            i.on_order_qty,
+            i.unit_cost,
+            i._batch_date,
+            i._loaded_at,
+            ROW_NUMBER() OVER (PARTITION BY i.item_id, i.location_id, i.snapshot_date ORDER BY i._loaded_at DESC) AS rn
+        FROM RETAIL_DW.RETAIL_SCHEMA.TMP_INVENTORY_SNAPSHOT i
+        LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_ITEM di
+               ON i.item_id = di.item_id
+              AND i.snapshot_date >= di.effective_from
+              AND i.snapshot_date < di.effective_to
+        LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_STORE ds
+               ON i.location_id = ds.location_id
+              AND i.snapshot_date >= ds.effective_from
+              AND i.snapshot_date < ds.effective_to
+        LEFT JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_DAY dd
+               ON i.snapshot_date = dd.full_date
+        WHERE i._batch_date = '{{batch_date}}'
+    )
+    WHERE rn = 1
 ) AS source
 ON target.snapshot_date = source.snapshot_date
    AND target.item_id = source.item_id
