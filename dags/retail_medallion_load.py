@@ -32,7 +32,7 @@ TMP_TRANSACTION_TABLES = [
 ]
 
 # Gold layer tables
-#Reference dimensions - no dependency on another Gold table.
+# Reference dimensions - no dependency on another Gold table.
 GOLD_REF_TABLES = [
     "subclass",
     "district",
@@ -40,20 +40,20 @@ GOLD_REF_TABLES = [
     "customer",
 ]
 
-#Core dimensions - look up the reference dimensions' keys.
+# Core dimensions - look up the reference dimensions' keys.
 GOLD_DIM_TABLES = [
     "item_master",
     "store_master",
 ]
 
-#Facts - look up every dimension key.
+# Facts - look up every dimension key.
 GOLD_FACT_TABLES = [
     "pos_sales",
     "inventory_snapshot",
     "price",
 ]
 
-# 4. Marts - aggregate the facts.
+# Marts - aggregate the facts.
 GOLD_MART_TABLES = [
     "sales_daily",
 ]
@@ -74,29 +74,33 @@ def get_batch_metadata() -> tuple[str, str]:
     return batch_date, dag_run_id
 
 
-def get_retention_cutoff() -> str:
+def get_retention_cutoff() -> str | None:
     """
     Calculate the batch_date cutoff for data retention.
 
     Returns:
-        cutoff_date: Rows with _batch_date before this date will be purged.
+        cutoff_date: Rows with _batch_date before this date will be purged,
+        or None if purging is disabled by the retention setting.
     """
     try:
-        retention_days = int(Variable.get("retention_days"))
-    except Exception:
+        retention_days = int(
+            Variable.get("retention_days", default=DEFAULT_RETENTION_DAYS)
+        )
+    except (TypeError, ValueError):
         retention_days = DEFAULT_RETENTION_DAYS
+
     if retention_days < 0 or retention_days > 1825:  # > 5 years
-        print(f"Retention days ({retention_days}) disabling batch purging.")
+        print(f"Retention days ({retention_days}) disables batch purging.")
         return None
-    cutoff = pendulum.now().subtract(days=retention_days)
-    return cutoff.format("YYYY-MM-DD")
+
+    return pendulum.now().subtract(days=retention_days).format("YYYY-MM-DD")
 
 
 # DAG DEFINITION
 with DAG(
     dag_id="retail_medallion_load",
-    schedule="@daily",
-    start_date=pendulum.datetime(2025, 11, 1, tz="UTC"),
+    schedule="0 22 * * *",
+    start_date=pendulum.datetime(2026, 10, 1, tz="Asia/Kathmandu"),
     catchup=False,
     max_active_runs=1,
     tags=["bronze", "silver", "dw"],
@@ -250,53 +254,27 @@ with DAG(
 
         print(f"Recorded completion in C_LOAD_DATES for batch {batch_date}.")
 
-@task
+    # RETENTION
+    @task
     def purge_old_batches() -> None:
-        \n        # Check if purge is enabled via Airflow Variable
-        try:
-            enable_purge = Variable.get("enable_purge", default_var=str(ENABLE_PURGE_DEFAULT))
-            if enable_purge.lower() not in ["true", "1", "yes"]:
-                print(f"Purge disabled via enable_purge Variable. Set to true/1/yes to enable.")
-                return
-        except Exception:
-            if not ENABLE_PURGE_DEFAULT:
-                print(f"Purge disabled by default (ENABLE_PURGE_DEFAULT=False).")
-                return
-        try:
-            retention_days = int(Variable.get("retention_days"))
-        except Exception:
-            retention_days = DEFAULT_RETENTION_DAYS
-        # Disable purging if retention_days is set to -1 or very high
-        if retention_days < 0 or retention_days > 1825:  # > 5 years
-            print(f"Retention days ({retention_days}) disabling batch purging.")
-            return
-        cutoff = get_retention_cutoff()
-        print(f"Purging data older than cutoff date: {cutoff}")\n        # Bronze layer: STG_* tables
-        run_sql("purge_bronze.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
-        print(f"  Purged Bronze STG tables up to cutoff {cutoff}.")\n        # Silver layer: TMP_* + C_REJ_TABLE
-        run_sql("purge_silver.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
-        print(f"  Purged Silver TMP tables and C_REJ_TABLE up to cutoff {cutoff}.")\n        # Gold layer: DIM_*, FACT_*, RPT_* tables
-        run_sql("purge_gold.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
-        print(f"  Purged Gold tables up to cutoff {cutoff}.")\n
-        # Disable purging if retention_days is set to -1 or very high
-        if retention_days < 0 or retention_days > 1825:  # > 5 years
-            print(f"Retention days ({retention_days}) disabling batch purging.")
+        """Purge batches older than the retention window (opt-in)."""
+        enable_purge = str(
+            Variable.get("enable_purge", default=str(ENABLE_PURGE_DEFAULT))
+        ).lower()
+        if enable_purge not in ("true", "1", "yes"):
+            print("Purge disabled (enable_purge Variable is not true/1/yes).")
             return
 
         cutoff = get_retention_cutoff()
+        if cutoff is None:
+            return  # retention disabled; message already printed
+
         print(f"Purging data older than cutoff date: {cutoff}")
 
-        # Bronze layer: STG_* tables
-        run_sql("purge_bronze.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
-        print(f"  Purged Bronze STG tables up to cutoff {cutoff}.")
-
-        # Silver layer: TMP_* + C_REJ_TABLE
-        run_sql("purge_silver.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
-        print(f"  Purged Silver TMP tables and C_REJ_TABLE up to cutoff {cutoff}.")
-
-        # Gold layer: DIM_*, FACT_*, RPT_* tables
-        run_sql("purge_gold.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
-        print(f"  Purged Gold tables up to cutoff {cutoff}.")
+        # Bronze: STG_* | Silver: TMP_* + C_REJ_TABLE | Gold: DIM_*, FACT_*, RPT_*
+        for layer in ("bronze", "silver", "gold"):
+            run_sql(f"purge_{layer}.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
+            print(f"  Purged {layer} layer up to cutoff {cutoff}.")
 
     # TASK INSTANTIATION
 

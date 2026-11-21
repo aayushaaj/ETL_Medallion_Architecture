@@ -21,16 +21,18 @@ WITH checks AS (
         'SUBCLASS',
         (SELECT COUNT(DISTINCT subclass_id) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_ITEM_MASTER
           WHERE _batch_date = '{{batch_date}}' AND subclass_id IS NOT NULL),
-        (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_SUBCLASS
-          WHERE _batch_date = '{{batch_date}}')
+        (SELECT COUNT(DISTINCT s.subclass_id) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_ITEM_MASTER s
+          JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_SUBCLASS d ON d.subclass_id = s.subclass_id
+          WHERE s._batch_date = '{{batch_date}}' AND s.subclass_id IS NOT NULL)
 
     UNION ALL
     SELECT
         'DISTRICT',
         (SELECT COUNT(DISTINCT district_id) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_STORE_MASTER
           WHERE _batch_date = '{{batch_date}}' AND district_id IS NOT NULL),
-        (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_DISTRICT
-          WHERE _batch_date = '{{batch_date}}')
+        (SELECT COUNT(DISTINCT s.district_id) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_STORE_MASTER s
+          JOIN RETAIL_DW.RETAIL_SCHEMA.DIM_DISTRICT d ON d.district_id = s.district_id
+          WHERE s._batch_date = '{{batch_date}}' AND s.district_id IS NOT NULL)
 
     UNION ALL
     SELECT
