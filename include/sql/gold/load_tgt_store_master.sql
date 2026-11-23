@@ -63,6 +63,6 @@ UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
 SET status = 'SUCCESS',
     end_time = CURRENT_TIMESTAMP(),
     rows_read = (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_STORE_MASTER WHERE _batch_date = '{{batch_date}}'),
-    rows_inserted = (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_STORE WHERE _batch_date = '{{batch_date}}' AND is_current = TRUE),
+    rows_inserted = (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_STORE WHERE _batch_date = '{{batch_date}}'),
     rows_rejected = 0
 WHERE run_id = '{{run_id}}' AND _batch_date = '{{batch_date}}' AND script_name = '{{script_name}}';
