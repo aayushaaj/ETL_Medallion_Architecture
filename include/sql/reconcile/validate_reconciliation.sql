@@ -6,7 +6,7 @@ WITH checks AS (
         (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_ITEM_MASTER
           WHERE _batch_date = '{{batch_date}}')                                   AS source_rows,
         (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_ITEM
-          WHERE _batch_date = '{{batch_date}}' AND is_current = TRUE)             AS target_rows
+          WHERE _batch_date = '{{batch_date}}')             AS target_rows
 
     UNION ALL
     SELECT
@@ -14,7 +14,7 @@ WITH checks AS (
         (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_STORE_MASTER
           WHERE _batch_date = '{{batch_date}}'),
         (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_STORE
-          WHERE _batch_date = '{{batch_date}}' AND is_current = TRUE)
+          WHERE _batch_date = '{{batch_date}}')
 
     UNION ALL
     SELECT
