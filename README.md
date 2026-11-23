@@ -45,10 +45,19 @@ Each Silver table is checked per batch. The first matching rule gives the reject
 
 The `validate_quarantine` task then reports the number of rejected rows for the batch. It does not fail the run.
 
+<<<<<<< HEAD
 ## Idempotency
 
 Re-running a batch gives the same result and creates no duplicates. Every table carries `_batch_date`, and every script only touches that batch.
 
+=======
+## Idempotency / Reload Policy
+
+Re-running a batch gives the same result and creates no duplicates. Every table carries `_batch_date`, and every script only touches that batch.
+
+The pipeline guarantees **exact reload** — re-executing a batch date produces identical state. This is enforced by:
+
+>>>>>>> 1dc2483af6edb0b0c09a8dbc2ea32ab614b1c184
 | Layer                     | How a re-run is handled                                                                                                                                                                  |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Bronze                    | Deletes the batch's rows from the `STG_*` table, then reloads the file (`PUT` with `OVERWRITE`, `COPY INTO` with `FORCE`).                                                               |
@@ -60,6 +69,40 @@ Re-running a batch gives the same result and creates no duplicates. Every table 
 
 The DAG also uses `max_active_runs=1`, so two runs never overlap.
 
+<<<<<<< HEAD
+=======
+---
+
+## Retention Policy
+
+Data retention is **configurable** via the Airflow Variable `retention_days`.
+
+- **Default**: 365 days (1 year). Batches older than the cutoff are purged from all layers during the `purge_old_batches` task.
+- **Disable purging**: Set `retention_days` to `-1` or a value `> 1825` (5+ years). The `purge_old_batches` task will log and return without deleting any data, preserving all historical rows.
+- **Cutoff calculation**: `current_date - retention_days` determines which `_batch_date` rows are removed.
+- **Recommendation**: For most DW scenarios, keep the default 365 days and rely on Snowflake **Time Travel** (0–90 day default, configurable up to 3650 days) for accidental-change recovery. Manual purging should be used only for storage management, not data-loss protection.
+
+| Variable          | Value           | Effect                                                   |
+| ----------------- | --------------- | -------------------------------------------------------- |
+| `retention_days`  | `365` (default) | Purge batches older than 1 year                          |
+| `retention_days`  | `-1`            | Disable purging entirely; retain all historical data       |
+| `retention_days`  | `> 1825`        | Disable purging; retain > 5 years of data                |
+
+The `purge_old_batches` task runs after `record_batch_completion` in the DAG dependency chain: `wait >> bronze >> silver >> gold >> reconcile >> record_completion >> purge`.
+
+For details on the purge SQL patterns per layer, see the inline task comments in `dags/retail_medallion_load.py`.
+
+## Tests
+
+Run the unit and SQL contract tests with:
+
+```bash
+uv run pytest
+```
+
+The tests cover data-file generation, SQL template rendering, audit behavior, the implemented batch-quality rules, silver rule priority ordering, reconciliation contract checks, and idempotency patterns across Bronze/Silver/Gold layers.
+
+>>>>>>> 1dc2483af6edb0b0c09a8dbc2ea32ab614b1c184
 ## Recording and audit
 
 Every load task runs through `run_sql_audited`:
@@ -81,3 +124,18 @@ A problem writing the log never hides the real error, and never fails a load tha
 | `C_BATCH_SCRIPTS` | Reference list of scripts with their layer (`STG` / `TMP` / `TGT`) and execution order.                                                                                                          |
 
 The tables are created by `include/sql/control/init_control.sql`.
+<<<<<<< HEAD
+=======
+
+## Tests
+
+Run the unit and SQL contract tests with:
+
+```bash
+uv run pytest
+```
+
+The tests cover data-file generation, SQL template rendering, audit behavior, and
+the implemented batch-quality rules. Snowflake execution and Airflow scheduling
+still require their configured services and are not exercised by this local suite.
+>>>>>>> 1dc2483af6edb0b0c09a8dbc2ea32ab614b1c184

@@ -8,6 +8,10 @@ from include.helpers import run_query, run_query_all, run_sql, run_sql_audited
 
 SNOWFLAKE_CONN_ID = "snowflake_conn"
 DEFAULT_DATA_PATH = "/opt/airflow/data"
+# Retention policy: number of days of batch data to retain.
+# Set to -1 or a very high number to effectively disable purging
+DEFAULT_RETENTION_DAYS = 365
+ENABLE_PURGE_DEFAULT = False
 
 SOURCE_FILES = [
     "pos_sales",
@@ -27,8 +31,8 @@ TMP_TRANSACTION_TABLES = [
     "inventory_snapshot",
 ]
 
-# Gold layer tables, grouped by the order they must be loaded in.
-# 1. Reference dimensions - no dependency on another Gold table.
+# Gold layer tables
+# Reference dimensions - no dependency on another Gold table.
 GOLD_REF_TABLES = [
     "subclass",
     "district",
@@ -36,20 +40,20 @@ GOLD_REF_TABLES = [
     "customer",
 ]
 
-# 2. Core dimensions - look up the reference dimensions' keys.
+# Core dimensions - look up the reference dimensions' keys.
 GOLD_DIM_TABLES = [
     "item_master",
     "store_master",
 ]
 
-# 3. Facts - look up every dimension key.
+# Facts - look up every dimension key.
 GOLD_FACT_TABLES = [
     "pos_sales",
     "inventory_snapshot",
     "price",
 ]
 
-# 4. Marts - aggregate the facts.
+# Marts - aggregate the facts.
 GOLD_MART_TABLES = [
     "sales_daily",
 ]
@@ -70,11 +74,33 @@ def get_batch_metadata() -> tuple[str, str]:
     return batch_date, dag_run_id
 
 
+def get_retention_cutoff() -> str | None:
+    """
+    Calculate the batch_date cutoff for data retention.
+
+    Returns:
+        cutoff_date: Rows with _batch_date before this date will be purged,
+        or None if purging is disabled by the retention setting.
+    """
+    try:
+        retention_days = int(
+            Variable.get("retention_days", default=DEFAULT_RETENTION_DAYS)
+        )
+    except (TypeError, ValueError):
+        retention_days = DEFAULT_RETENTION_DAYS
+
+    if retention_days < 0 or retention_days > 1825:  # > 5 years
+        print(f"Retention days ({retention_days}) disables batch purging.")
+        return None
+
+    return pendulum.now().subtract(days=retention_days).format("YYYY-MM-DD")
+
+
 # DAG DEFINITION
 with DAG(
     dag_id="retail_medallion_load",
-    schedule="@daily",
-    start_date=pendulum.datetime(2025, 11, 1, tz="UTC"),
+    schedule="0 22 * * *",
+    start_date=pendulum.datetime(2026, 10, 1, tz="Asia/Kathmandu"),
     catchup=False,
     max_active_runs=1,
     tags=["bronze", "silver", "dw"],
@@ -228,6 +254,28 @@ with DAG(
 
         print(f"Recorded completion in C_LOAD_DATES for batch {batch_date}.")
 
+    # RETENTION
+    @task
+    def purge_old_batches() -> None:
+        """Purge batches older than the retention window (opt-in)."""
+        enable_purge = str(
+            Variable.get("enable_purge", default=str(ENABLE_PURGE_DEFAULT))
+        ).lower()
+        if enable_purge not in ("true", "1", "yes"):
+            print("Purge disabled (enable_purge Variable is not true/1/yes).")
+            return
+
+        cutoff = get_retention_cutoff()
+        if cutoff is None:
+            return  # retention disabled; message already printed
+
+        print(f"Purging data older than cutoff date: {cutoff}")
+
+        # Bronze: STG_* | Silver: TMP_* + C_REJ_TABLE | Gold: DIM_*, FACT_*, RPT_*
+        for layer in ("bronze", "silver", "gold"):
+            run_sql(f"purge_{layer}.sql", {"cutoff": cutoff}, conn_id=SNOWFLAKE_CONN_ID)
+            print(f"  Purged {layer} layer up to cutoff {cutoff}.")
+
     # TASK INSTANTIATION
 
     wait = FileSensor(
@@ -271,7 +319,7 @@ with DAG(
 
     recon = reconcile()
     record_completion = record_batch_completion()
+    purge = purge_old_batches()
 
     # TASK DEPENDENCIES
-    # Sensor -> Bronze -> Silver -> Gold -> Recon -> Record
-    wait >> bronze >> silver >> gold >> recon >> record_completion
+    wait >> bronze >> silver >> gold >> recon >> record_completion >> purge

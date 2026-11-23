@@ -24,11 +24,3 @@ WHEN MATCHED AND (target._batch_date IS NULL OR source._batch_date >= target._ba
 WHEN NOT MATCHED THEN
     INSERT (subclass_sk, subclass_id, subclass_name, _batch_date, _loaded_at)
     VALUES (source.subclass_sk, source.subclass_id, source.subclass_name, source._batch_date, source._loaded_at);
-
-UPDATE RETAIL_DW.RETAIL_SCHEMA.C_BATCH_LOG
-SET status = 'SUCCESS',
-    end_time = CURRENT_TIMESTAMP(),
-    rows_read = (SELECT COUNT(DISTINCT subclass_id) FROM RETAIL_DW.RETAIL_SCHEMA.TMP_ITEM_MASTER WHERE _batch_date = '{{batch_date}}' AND subclass_id IS NOT NULL AND TRIM(subclass_id) <> ''),
-    rows_inserted = (SELECT COUNT(*) FROM RETAIL_DW.RETAIL_SCHEMA.DIM_SUBCLASS WHERE _batch_date = '{{batch_date}}'),
-    rows_rejected = 0
-WHERE run_id = '{{run_id}}' AND _batch_date = '{{batch_date}}' AND script_name = '{{script_name}}';

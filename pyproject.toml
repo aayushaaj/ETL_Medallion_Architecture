@@ -8,9 +8,13 @@ dependencies = [
     "pendulum>=3.3.0",
 ]
 
-[project.scripts]
-assignment-2-3 = "assignment_2_3:main"
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+]
 
-[build-system]
-requires = ["uv_build>=0.13.7,<0.14.0"]
-build-backend = "uv_build"
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

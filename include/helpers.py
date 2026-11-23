@@ -1,12 +1,16 @@
 import logging
 from pathlib import Path
 
-from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
-
 log = logging.getLogger(__name__)
 
 SQL_DIR = Path(__file__).resolve().parent / "sql"
 MAX_ERROR_CHARS = 4000
+
+
+def _snowflake_hook(conn_id: str):
+    from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
+
+    return SnowflakeHook(snowflake_conn_id=conn_id)
 
 
 def _load_sql(filename: str, params: dict = None) -> str:
@@ -28,7 +32,7 @@ def _sql_str(value) -> str:
 
 def run_sql(filename: str, params: dict = None, conn_id: str = "snowflake_conn") -> None:
     sql = _load_sql(filename, params)
-    hook = SnowflakeHook(snowflake_conn_id=conn_id)
+    hook = _snowflake_hook(conn_id)
     # split_statements=True allows multiple SQL statements in one file
     hook.run(sql, split_statements=True)
 
@@ -67,12 +71,12 @@ def run_sql_audited(
 
 def run_query(filename: str, params: dict = None, conn_id: str = "snowflake_conn") -> tuple:
     sql = _load_sql(filename, params)
-    hook = SnowflakeHook(snowflake_conn_id=conn_id)
+    hook = _snowflake_hook(conn_id)
     return hook.get_first(sql)
 
 
 def run_query_all(filename: str, params: dict = None, conn_id: str = "snowflake_conn") -> list:
     """Run a query file and return every row."""
     sql = _load_sql(filename, params)
-    hook = SnowflakeHook(snowflake_conn_id=conn_id)
+    hook = _snowflake_hook(conn_id)
     return hook.get_records(sql)
