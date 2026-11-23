@@ -45,19 +45,12 @@ Each Silver table is checked per batch. The first matching rule gives the reject
 
 The `validate_quarantine` task then reports the number of rejected rows for the batch. It does not fail the run.
 
-<<<<<<< HEAD
-## Idempotency
-
-Re-running a batch gives the same result and creates no duplicates. Every table carries `_batch_date`, and every script only touches that batch.
-
-=======
 ## Idempotency / Reload Policy
 
 Re-running a batch gives the same result and creates no duplicates. Every table carries `_batch_date`, and every script only touches that batch.
 
 The pipeline guarantees **exact reload** — re-executing a batch date produces identical state. This is enforced by:
 
->>>>>>> 1dc2483af6edb0b0c09a8dbc2ea32ab614b1c184
 | Layer                     | How a re-run is handled                                                                                                                                                                  |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Bronze                    | Deletes the batch's rows from the `STG_*` table, then reloads the file (`PUT` with `OVERWRITE`, `COPY INTO` with `FORCE`).                                                               |
@@ -69,8 +62,6 @@ The pipeline guarantees **exact reload** — re-executing a batch date produces 
 
 The DAG also uses `max_active_runs=1`, so two runs never overlap.
 
-<<<<<<< HEAD
-=======
 ---
 
 ## Retention Policy
@@ -92,17 +83,6 @@ The `purge_old_batches` task runs after `record_batch_completion` in the DAG dep
 
 For details on the purge SQL patterns per layer, see the inline task comments in `dags/retail_medallion_load.py`.
 
-## Tests
-
-Run the unit and SQL contract tests with:
-
-```bash
-uv run pytest
-```
-
-The tests cover data-file generation, SQL template rendering, audit behavior, the implemented batch-quality rules, silver rule priority ordering, reconciliation contract checks, and idempotency patterns across Bronze/Silver/Gold layers.
-
->>>>>>> 1dc2483af6edb0b0c09a8dbc2ea32ab614b1c184
 ## Recording and audit
 
 Every load task runs through `run_sql_audited`:
@@ -124,8 +104,6 @@ A problem writing the log never hides the real error, and never fails a load tha
 | `C_BATCH_SCRIPTS` | Reference list of scripts with their layer (`STG` / `TMP` / `TGT`) and execution order.                                                                                                          |
 
 The tables are created by `include/sql/control/init_control.sql`.
-<<<<<<< HEAD
-=======
 
 ## Tests
 
@@ -135,7 +113,4 @@ Run the unit and SQL contract tests with:
 uv run pytest
 ```
 
-The tests cover data-file generation, SQL template rendering, audit behavior, and
-the implemented batch-quality rules. Snowflake execution and Airflow scheduling
-still require their configured services and are not exercised by this local suite.
->>>>>>> 1dc2483af6edb0b0c09a8dbc2ea32ab614b1c184
+The tests cover data-file generation, SQL template rendering, audit behavior, the implemented batch-quality rules, silver rule priority ordering, reconciliation contract checks, and idempotency patterns across Bronze/Silver/Gold layers. Snowflake execution and Airflow scheduling still require their configured services and are not exercised by this local suite.
