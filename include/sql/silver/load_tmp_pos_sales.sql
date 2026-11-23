@@ -15,7 +15,7 @@ validated AS (
         CASE 
             WHEN item_id IS NULL OR TRIM(item_id) = '' THEN 'NULL_FK'
             WHEN location_id IS NULL OR TRIM(location_id) = '' THEN 'NULL_FK'
-            WHEN sales_qty < 0 THEN 'NEG_QTY'
+            WHEN sales_qty < 0 OR extended_amount < 0 OR unit_price < 0 THEN 'NEG_QTY'
             WHEN rn > 1 THEN 'DUP_LINE'
             WHEN im_item_id IS NULL THEN 'ORPHAN_FK'
             ELSE NULL
@@ -38,7 +38,7 @@ validated AS (
         CASE 
             WHEN item_id IS NULL OR TRIM(item_id) = '' THEN 'NULL_FK'
             WHEN location_id IS NULL OR TRIM(location_id) = '' THEN 'NULL_FK'
-            WHEN sales_qty < 0 THEN 'NEG_QTY'
+            WHEN sales_qty < 0 OR extended_amount < 0 OR unit_price < 0 THEN 'NEG_QTY'
             WHEN rn > 1 THEN 'DUP_LINE'
             WHEN im_item_id IS NULL THEN 'ORPHAN_FK'
             ELSE NULL

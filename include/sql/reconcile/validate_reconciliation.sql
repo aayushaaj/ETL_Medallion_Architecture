@@ -74,6 +74,21 @@ WITH checks AS (
           WHERE _batch_date = '{{batch_date}}'),
         (SELECT COALESCE(SUM(total_qty), 0) FROM RETAIL_DW.RETAIL_SCHEMA.RPT_SALES_DAILY
           WHERE _batch_date = '{{batch_date}}')
+
+    UNION ALL
+    SELECT
+        'NET_SALES',
+        -- Source Gross Net Sales minus Quarantined Rejected Sales = Net Validated Source Sales
+        (SELECT ROUND(
+            (SELECT COALESCE(SUM(extended_amount), 0) FROM RETAIL_DW.RETAIL_SCHEMA.STG_POS_SALES WHERE _batch_date = '{{batch_date}}')
+            -
+            (SELECT COALESCE(SUM(payload:EXTENDED_AMOUNT::NUMBER(10,2)), 0) FROM RETAIL_DW.RETAIL_SCHEMA.C_REJ_TABLE WHERE _batch_date = '{{batch_date}}' AND source_table = 'STG_POS_SALES'),
+            2
+        )),
+        -- Gold Daily Sales Mart Total Net Sales Amount
+        (SELECT ROUND(COALESCE(SUM(total_sales_amount), 0), 2)
+         FROM RETAIL_DW.RETAIL_SCHEMA.RPT_SALES_DAILY
+         WHERE _batch_date = '{{batch_date}}')
 )
 SELECT
     check_name,

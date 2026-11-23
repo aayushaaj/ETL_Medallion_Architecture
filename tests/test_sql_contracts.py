@@ -103,7 +103,7 @@ def test_reconciliation_checks_all_datasets():
     sql = (SQL_DIR / "reconcile" / "validate_reconciliation.sql").read_text()
     expected_checks = {
         "ITEM_MASTER", "STORE_MASTER", "SUBCLASS", "DISTRICT", "CUSTOMER",
-        "POS_SALES", "INVENTORY", "PRICE", "SALES_DAILY",
+        "POS_SALES", "INVENTORY", "PRICE", "SALES_DAILY", "NET_SALES",
     }
     checks = set(re.findall(r"SELECT\s+'([A-Z_]+)'", sql))
     assert checks == expected_checks
